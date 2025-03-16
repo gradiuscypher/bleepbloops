@@ -127,6 +127,39 @@ class TriangleOscillator(Module):
         return amplitude * triangle
 
 
+class VCA(Module):
+    def __init__(
+        self, input_module: Optional[Module] = None, cv_input: Optional[Module] = None
+    ):
+        super().__init__()
+        self.input_module = input_module
+        self.cv_input = cv_input
+        self.base_gain = 1.0
+
+    def set_input(self, module: Module):
+        self.input_module = module
+
+    def set_cv_input(self, module: Module):
+        self.cv_input = module
+
+    def process(self, time_array: np.ndarray) -> np.ndarray:
+        if not self.input_module:
+            return np.zeros_like(time_array)
+
+        input_signal = self.input_module.process(time_array)
+
+        # Get CV (control voltage) signal, default to 1.0 if no CV input
+        if self.cv_input:
+            # Normalize CV to [0, 1] range and apply as gain
+            cv_signal = self.cv_input.process(time_array)
+            cv_signal = (cv_signal + 1) * 0.5  # Convert from [-1, 1] to [0, 1]
+            gain = cv_signal * self.base_gain
+        else:
+            gain = self.base_gain
+
+        return input_signal * gain
+
+
 class Filter(Module):
     def __init__(
         self, filter_type: FilterType = FilterType.LOWPASS, cutoff_freq: float = 1000
@@ -236,39 +269,17 @@ class AudioOutput:
 
 # Example usage:
 if __name__ == "__main__":
-    # Create base oscillators at different frequencies
-    sine = SineOscillator(frequency=440)  # A4 note
-    square = SquareOscillator(
-        frequency=220, duty_cycle=0.3
-    )  # A3 note with narrow pulse
-    triangle = TriangleOscillator(frequency=110)  # A2 note
+    from examples import (
+        example_1_waveforms,
+        example_2_chord,
+        example_3_vca,
+        example_4_beeper,
+        example_5_morse_code,
+    )
 
-    # Create modulators
-    lfo1 = SineOscillator(frequency=2, amplitude=0.3)  # 2 Hz amplitude modulation
-    lfo2 = SineOscillator(frequency=0.5, amplitude=0.2)  # 0.5 Hz duty cycle modulation
-    lfo3 = TriangleOscillator(frequency=4, amplitude=0.1)  # 4 Hz frequency modulation
-
-    # Set up modulation
-    sine.set_amplitude_modulation(lfo1)  # Tremolo effect on sine
-    square.set_duty_cycle_modulation(lfo2)  # Pulse width modulation
-    triangle.set_frequency_modulation(lfo3)  # Vibrato effect on triangle
-
-    # Create a mixer and add all oscillators
-    mixer = Mixer()
-    mixer.add_input(sine, gain=0.3)
-    mixer.add_input(square, gain=0.3)
-    mixer.add_input(triangle, gain=0.3)
-
-    # Create a filter for the final output
-    filter_module = Filter(FilterType.LOWPASS, cutoff_freq=2000)
-    filter_module.set_input(mixer)
-
-    # Create audio output
-    output = AudioOutput(filter_module)
-
-    # Play for 10 seconds
-    print("Playing demonstration of sine, square, and triangle waves...")
-    print("- Sine wave (440 Hz) with tremolo effect")
-    print("- Square wave (220 Hz) with pulse width modulation")
-    print("- Triangle wave (110 Hz) with vibrato effect")
-    output.start(duration=10)
+    # Uncomment the examples you want to run
+    # example_1_waveforms()
+    # example_2_chord()
+    # example_3_vca()
+    example_4_beeper()
+    example_5_morse_code()
