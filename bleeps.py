@@ -223,6 +223,125 @@ class Mixer(Module):
         return output
 
 
+class Sequencer(Module):
+    """A sequencer module that plays a sequence of notes with proper timing."""
+
+    # Standard MIDI note frequencies
+    NOTE_FREQUENCIES = {
+        "C": 261.63,
+        "C#": 277.18,
+        "D": 293.66,
+        "D#": 311.13,
+        "E": 329.63,
+        "F": 349.23,
+        "F#": 369.99,
+        "G": 392.00,
+        "G#": 415.30,
+        "A": 440.00,
+        "A#": 466.16,
+        "B": 493.88,
+    }
+
+    def __init__(self, bpm=120.0):
+        """Initialize the sequencer.
+
+        Args:
+            bpm (float): Beats per minute for the sequence
+        """
+        super().__init__()
+        self.bpm = bpm
+        self.step_duration = 60.0 / bpm  # Duration of one beat in seconds
+        self.sequence = []  # List of (frequency, duration) tuples
+        self.output_module = None
+
+    def set_output(self, module):
+        """Set the output module that will receive the sequence."""
+        self.output_module = module
+
+    def add_note(self, note_name, duration):
+        """Add a note to the sequence.
+
+        Args:
+            note_name (str): Note name (e.g., 'C4', 'A#3')
+            duration (float): Duration in beats
+        """
+        # Parse note name (e.g., 'C4' -> 'C' and 4)
+        note = note_name[:-1]
+        octave = int(note_name[-1])
+
+        # Calculate frequency based on octave
+        base_freq = self.NOTE_FREQUENCIES[note]
+        frequency = base_freq * (2 ** (octave - 4))  # A4 is our reference octave
+
+        # Add to sequence
+        self.sequence.append((frequency, duration))
+
+    def process(self, t):
+        """Process the sequence for the given time array.
+
+        Args:
+            t (np.ndarray): Time array in seconds
+
+        Returns:
+            np.ndarray: Output signal
+        """
+        if not self.output_module:
+            return np.zeros_like(t)
+
+        # Calculate total sequence duration
+        total_duration = sum(
+            duration * self.step_duration for _, duration in self.sequence
+        )
+
+        # Initialize output array
+        output = np.zeros_like(t)
+
+        # Current time in sequence
+        current_time = 0
+
+        # Process each note
+        for frequency, duration in self.sequence:
+            note_duration = duration * self.step_duration
+
+            # Find indices for this note
+            note_start = current_time
+            note_end = current_time + note_duration
+
+            # Get the time indices for this note
+            note_indices = (t >= note_start) & (t < note_end)
+
+            if np.any(note_indices):
+                # Set frequency for this note
+                if isinstance(
+                    self.output_module,
+                    (SineOscillator, SquareOscillator, TriangleOscillator),
+                ):
+                    self.output_module.base_frequency = frequency
+                elif hasattr(self.output_module, "input_modules"):
+                    # If it's a mixer, update all input oscillators
+                    for module, _ in self.output_module.input_modules:
+                        if isinstance(
+                            module,
+                            (SineOscillator, SquareOscillator, TriangleOscillator),
+                        ):
+                            module.base_frequency = frequency
+
+                # Process the note
+                note_output = self.output_module.process(t[note_indices])
+
+                # Apply amplitude envelope
+                note_time = t[note_indices] - note_start
+                envelope = np.exp(-note_time / 0.1)  # Quick attack, natural decay
+                note_output = note_output * envelope
+
+                # Add to output
+                output[note_indices] = note_output
+
+            current_time += note_duration
+
+        return output
+
+
 class AudioOutput:
     def __init__(self, input_module: Optional[Module] = None):
         self.sample_rate = 44100
@@ -275,11 +394,15 @@ if __name__ == "__main__":
         example_3_vca,
         example_4_beeper,
         example_5_morse_code,
+        example_6_drum_and_lead,
+        example_7_sequencer,
     )
 
     # Uncomment the examples you want to run
     # example_1_waveforms()
     # example_2_chord()
     # example_3_vca()
-    example_4_beeper()
-    example_5_morse_code()
+    # example_4_beeper()
+    # example_5_morse_code()
+    # example_6_drum_and_lead()
+    example_7_sequencer()

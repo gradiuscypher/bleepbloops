@@ -7,6 +7,7 @@ from bleeps import (
     AudioOutput,
     VCA,
     FilterType,
+    Sequencer,
 )
 
 
@@ -199,3 +200,119 @@ def example_5_morse_code():
     print("- Gated to produce SOS pattern")
     print("- ... --- ...")
     output.start(duration=10)
+
+
+def example_6_drum_and_lead():
+    """Demonstrate a simple drum pattern with a lead synth melody."""
+    # Create drum sounds using filtered noise
+    kick = SquareOscillator(frequency=60, amplitude=0.5)  # Low frequency for kick
+    snare = SquareOscillator(frequency=200, amplitude=0.3)  # Mid frequency for snare
+    hihat = SquareOscillator(frequency=2000, amplitude=0.2)  # High frequency for hihat
+
+    # Create drum pattern gates (4/4 time at 120 BPM = 2 Hz base frequency)
+    base_freq = 2  # 2 Hz = 120 BPM
+    kick_gate = SquareOscillator(frequency=base_freq, duty_cycle=0.1)  # On the 1
+    snare_gate = SquareOscillator(frequency=base_freq, duty_cycle=0.1)  # On the 2 and 4
+    hihat_gate = SquareOscillator(
+        frequency=base_freq * 2, duty_cycle=0.05
+    )  # Eighth notes
+
+    # Create lead synth (using multiple oscillators for richness)
+    lead_fundamental = SineOscillator(frequency=440, amplitude=0.3)  # A4
+    lead_harmonic = TriangleOscillator(frequency=880, amplitude=0.2)  # A5
+    lead_brightness = SquareOscillator(frequency=1320, amplitude=0.1)  # E6
+
+    # Create lead melody gate (quarter notes)
+    lead_gate = SquareOscillator(frequency=base_freq, duty_cycle=0.5)
+
+    # Mix lead oscillators
+    lead_mixer = Mixer()
+    lead_mixer.add_input(lead_fundamental, gain=1.0)
+    lead_mixer.add_input(lead_harmonic, gain=0.7)
+    lead_mixer.add_input(lead_brightness, gain=0.5)
+
+    # Create VCAs for gating
+    kick_vca = VCA(kick)
+    kick_vca.set_cv_input(kick_gate)
+
+    snare_vca = VCA(snare)
+    snare_vca.set_cv_input(snare_gate)
+
+    hihat_vca = VCA(hihat)
+    hihat_vca.set_cv_input(hihat_gate)
+
+    lead_vca = VCA(lead_mixer)
+    lead_vca.set_cv_input(lead_gate)
+
+    # Mix everything together
+    final_mixer = Mixer()
+    final_mixer.add_input(kick_vca, gain=1.0)
+    final_mixer.add_input(snare_vca, gain=0.8)
+    final_mixer.add_input(hihat_vca, gain=0.6)
+    final_mixer.add_input(lead_vca, gain=0.7)
+
+    # Add some filtering for the drums
+    drum_filter = Filter(FilterType.LOWPASS, cutoff_freq=5000)
+    drum_filter.set_input(final_mixer)
+
+    # Create audio output
+    output = AudioOutput(drum_filter)
+
+    print("Playing drum and lead demonstration...")
+    print("- Kick drum on the 1")
+    print("- Snare on the 2 and 4")
+    print("- Hihat on eighth notes")
+    print("- Lead synth playing quarter notes")
+    output.start(duration=10)
+
+
+def example_7_sequencer():
+    """Demonstrate the sequencer with a simple melody."""
+    # Create a rich lead sound using multiple oscillators
+    lead_fundamental = SineOscillator(frequency=440, amplitude=0.3)
+    lead_harmonic = TriangleOscillator(frequency=880, amplitude=0.2)
+    lead_brightness = SquareOscillator(frequency=1320, amplitude=0.1)
+
+    # Mix the lead oscillators
+    lead_mixer = Mixer()
+    lead_mixer.add_input(lead_fundamental, gain=1.0)
+    lead_mixer.add_input(lead_harmonic, gain=0.7)
+    lead_mixer.add_input(lead_brightness, gain=0.5)
+
+    # Create a sequencer at 120 BPM
+    sequencer = Sequencer(bpm=120.0)
+    sequencer.set_output(lead_mixer)  # Connect the mixer to the sequencer
+
+    # Add a simple melody (Twinkle Twinkle Little Star)
+    melody = [
+        ("C4", 1.0),
+        ("C4", 1.0),
+        ("G4", 1.0),
+        ("G4", 1.0),
+        ("A4", 1.0),
+        ("A4", 1.0),
+        ("G4", 2.0),
+        ("F4", 1.0),
+        ("F4", 1.0),
+        ("E4", 1.0),
+        ("E4", 1.0),
+        ("D4", 1.0),
+        ("D4", 1.0),
+        ("C4", 2.0),
+    ]
+
+    # Add notes to the sequence
+    for note, duration in melody:
+        sequencer.add_note(note, duration)
+
+    # Add some filtering for a smoother sound
+    filter_module = Filter(FilterType.LOWPASS, cutoff_freq=3000)
+    filter_module.set_input(sequencer)  # Connect sequencer to filter
+
+    # Create audio output
+    output = AudioOutput(filter_module)
+
+    print("Playing sequencer demonstration...")
+    print("- Twinkle Twinkle Little Star melody")
+    print("- Rich lead sound with multiple oscillators")
+    output.start(duration=20)  # Longer duration to play the full melody
